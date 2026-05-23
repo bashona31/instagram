@@ -104,14 +104,21 @@ export function BulkSenderForm({ onSend, isProcessing, walletConnected }: Props)
             </table>
           </div>
 
+          {/* INFO: Single Transaction */}
+          <div className="rounded-xl bg-blue-500/10 border border-blue-500/20 p-3 text-center">
+            <p className="text-xs text-blue-400 font-medium">
+              ⚡ ONE MetaMask confirmation → Smart contract sends to ALL {validCount} wallets in a single transaction
+            </p>
+          </div>
+
           {/* SEND BUTTON */}
           <button onClick={handleSend} disabled={validCount === 0 || isProcessing || !walletConnected} className="btn-primary w-full py-5 text-lg font-bold animate-pulse-pink">
             {!walletConnected ? "Connect Wallet First" : isProcessing ? (
-              <span className="flex items-center justify-center gap-2"><svg className="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Processing Transactions...</span>
+              <span className="flex items-center justify-center gap-2"><svg className="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Confirming Transaction...</span>
             ) : (
               <span className="flex items-center justify-center gap-2">
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                SEND {totalAmt.toFixed(4)} {mode === "native" ? DAC_NETWORK.currencySymbol : "Tokens"} to {validCount} Wallets
+                SEND {totalAmt.toFixed(4)} {mode === "native" ? DAC_NETWORK.currencySymbol : "Tokens"} to {validCount} Wallets (1 TX)
               </span>
             )}
           </button>
