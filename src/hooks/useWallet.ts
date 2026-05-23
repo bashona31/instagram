@@ -1,9 +1,5 @@
 "use client";
 
-// ============================================================
-// useWallet Hook - Manages wallet connection and state
-// ============================================================
-
 import { useState, useEffect, useCallback } from "react";
 import { ethers } from "ethers";
 import { WalletState } from "@/types";
@@ -11,12 +7,7 @@ import { DAC_NETWORK } from "@/lib/constants";
 
 declare global {
   interface Window {
-    ethereum?: {
-      request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-      on: (event: string, callback: (...args: unknown[]) => void) => void;
-      removeListener: (event: string, callback: (...args: unknown[]) => void) => void;
-      isMetaMask?: boolean;
-    };
+    ethereum?: any;
   }
 }
 
@@ -35,105 +26,65 @@ export function useWallet() {
   const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
   const [signer, setSigner] = useState<ethers.Signer | null>(null);
 
-  // Check if MetaMask is available
   const isMetaMaskAvailable = typeof window !== "undefined" && !!window.ethereum;
 
-  /**
-   * Fetch wallet balance
-   */
-  const fetchBalance = useCallback(
-    async (address: string, browserProvider: ethers.BrowserProvider) => {
-      try {
-        const balance = await browserProvider.getBalance(address);
-        return ethers.formatEther(balance);
-      } catch (error) {
-        console.error("Failed to fetch balance:", error);
-        return "0";
-      }
-    },
-    []
-  );
+  const fetchBalance = useCallback(async (address: string, bp: ethers.BrowserProvider) => {
+    try {
+      const balance = await bp.getBalance(address);
+      return ethers.formatEther(balance);
+    } catch {
+      return "0";
+    }
+  }, []);
 
-  /**
-   * Switch to DAC Testnet network
-   */
   const switchNetwork = useCallback(async () => {
     if (!window.ethereum) return false;
-
     try {
       await window.ethereum.request({
         method: "wallet_switchEthereumChain",
         params: [{ chainId: DAC_NETWORK.chainIdHex }],
       });
       return true;
-    } catch (switchError: unknown) {
-      // If chain doesn't exist, add it
-      const error = switchError as { code: number };
-      if (error.code === 4902) {
+    } catch (err: any) {
+      if (err.code === 4902) {
         try {
           await window.ethereum.request({
             method: "wallet_addEthereumChain",
-            params: [
-              {
-                chainId: DAC_NETWORK.chainIdHex,
-                chainName: DAC_NETWORK.networkName,
-                nativeCurrency: {
-                  name: DAC_NETWORK.currencySymbol,
-                  symbol: DAC_NETWORK.currencySymbol,
-                  decimals: 18,
-                },
-                rpcUrls: [DAC_NETWORK.rpcUrl],
-                blockExplorerUrls: [DAC_NETWORK.explorerUrl],
-              },
-            ],
+            params: [{
+              chainId: DAC_NETWORK.chainIdHex,
+              chainName: DAC_NETWORK.networkName,
+              nativeCurrency: { name: DAC_NETWORK.currencySymbol, symbol: DAC_NETWORK.currencySymbol, decimals: 18 },
+              rpcUrls: [DAC_NETWORK.rpcUrl],
+              blockExplorerUrls: [DAC_NETWORK.explorerUrl],
+            }],
           });
           return true;
-        } catch (addError) {
-          console.error("Failed to add network:", addError);
-          return false;
-        }
+        } catch { return false; }
       }
-      console.error("Failed to switch network:", switchError);
       return false;
     }
   }, []);
 
-  /**
-   * Connect wallet via MetaMask
-   */
   const connect = useCallback(async () => {
-    if (!window.ethereum) {
-      throw new Error("MetaMask is not installed");
-    }
-
+    if (!window.ethereum) throw new Error("MetaMask is not installed");
     setIsConnecting(true);
-
     try {
-      // Request account access
-      const accounts = (await window.ethereum.request({
-        method: "eth_requestAccounts",
-      })) as string[];
-
-      if (!accounts || accounts.length === 0) {
-        throw new Error("No accounts found");
-      }
+      const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+      if (!accounts || accounts.length === 0) throw new Error("No accounts found");
 
       const address = accounts[0];
-      const browserProvider = new ethers.BrowserProvider(window.ethereum as any);
-      const walletSigner = await browserProvider.getSigner();
-      const network = await browserProvider.getNetwork();
+      const bp = new ethers.BrowserProvider(window.ethereum);
+      const s = await bp.getSigner();
+      const network = await bp.getNetwork();
       const chainId = Number(network.chainId);
 
-      // Auto switch to correct network if needed
-      const isCorrectNetwork = chainId === DAC_NETWORK.chainId;
-      if (!isCorrectNetwork) {
+      if (chainId !== DAC_NETWORK.chainId) {
         await switchNetwork();
       }
 
-      const balance = await fetchBalance(address, browserProvider);
-
-      setProvider(browserProvider);
-      setSigner(walletSigner);
+      const balance = await fetchBalance(address, bp);
+      setProvider(bp);
+      setSigner(s);
       setWallet({
         isConnected: true,
         address,
@@ -142,20 +93,14 @@ export function useWallet() {
         isCorrectNetwork: true,
         provider: "metamask",
       });
-
-      // Store connection in localStorage for auto-reconnect
       localStorage.setItem("walletConnected", "true");
     } catch (error) {
-      console.error("Connection failed:", error);
       throw error;
     } finally {
       setIsConnecting(false);
     }
   }, [switchNetwork, fetchBalance]);
 
-  /**
-   * Disconnect wallet
-   */
   const disconnect = useCallback(() => {
     setWallet(initialState);
     setProvider(null);
@@ -163,9 +108,6 @@ export function useWallet() {
     localStorage.removeItem("walletConnected");
   }, []);
 
-  /**
-   * Refresh balance
-   */
   const refreshBalance = useCallback(async () => {
     if (wallet.address && provider) {
       const balance = await fetchBalance(wallet.address, provider);
@@ -173,54 +115,27 @@ export function useWallet() {
     }
   }, [wallet.address, provider, fetchBalance]);
 
-  // Handle account changes
   useEffect(() => {
     if (!window.ethereum) return;
-
-    const handleAccountsChanged = (accounts: unknown) => {
-      const accs = accounts as string[];
-      if (accs.length === 0) {
-        disconnect();
-      } else if (accs[0] !== wallet.address) {
-        // Re-connect with new account
-        connect();
-      }
+    const handleAccounts = (accounts: string[]) => {
+      if (accounts.length === 0) disconnect();
+      else connect();
     };
-
-    const handleChainChanged = () => {
-      // Reload to reset state on chain change
-      window.location.reload();
-    };
-
-    window.ethereum.on("accountsChanged", handleAccountsChanged);
-    window.ethereum.on("chainChanged", handleChainChanged);
-
+    const handleChain = () => window.location.reload();
+    window.ethereum.on("accountsChanged", handleAccounts);
+    window.ethereum.on("chainChanged", handleChain);
     return () => {
-      window.ethereum?.removeListener("accountsChanged", handleAccountsChanged);
-      window.ethereum?.removeListener("chainChanged", handleChainChanged);
+      window.ethereum?.removeListener("accountsChanged", handleAccounts);
+      window.ethereum?.removeListener("chainChanged", handleChain);
     };
-  }, [wallet.address, connect, disconnect]);
+  }, [connect, disconnect]);
 
-  // Auto-reconnect on page load
   useEffect(() => {
-    const wasConnected = localStorage.getItem("walletConnected");
-    if (wasConnected && isMetaMaskAvailable) {
-      connect().catch(() => {
-        localStorage.removeItem("walletConnected");
-      });
+    if (localStorage.getItem("walletConnected") && isMetaMaskAvailable) {
+      connect().catch(() => localStorage.removeItem("walletConnected"));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return {
-    wallet,
-    provider,
-    signer,
-    isConnecting,
-    isMetaMaskAvailable,
-    connect,
-    disconnect,
-    switchNetwork,
-    refreshBalance,
-  };
+  return { wallet, provider, signer, isConnecting, isMetaMaskAvailable, connect, disconnect, switchNetwork, refreshBalance };
 }
