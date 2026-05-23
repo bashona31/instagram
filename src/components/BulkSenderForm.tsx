@@ -98,11 +98,30 @@ export function BulkSenderForm({ onSubmit, isProcessing, walletConnected }: Bulk
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <button onClick={handleParse} disabled={!inputText.trim()} className="btn-secondary text-sm">Validate</button>
+        <button onClick={handleParse} disabled={!inputText.trim()} className="btn-secondary text-sm">Validate & Preview</button>
         <button onClick={() => fileInputRef.current?.click()} className="btn-ghost text-neutral-400 hover:text-pink-400">Upload CSV</button>
         <button onClick={() => { const s = generateSampleCSV(); downloadCSV(s, "sample.csv"); }} className="btn-ghost text-neutral-400 hover:text-pink-400">Sample CSV</button>
         <input ref={fileInputRef} type="file" accept=".csv,.txt" onChange={handleFileChange} className="hidden" />
       </div>
+
+      {/* Quick Send Button - always visible when there's input */}
+      {inputText.trim() && !showPreview && (
+        <button
+          onClick={() => {
+            const parsed = parseRecipientsFromText(inputText);
+            setRecipients(parsed);
+            setShowPreview(true);
+            const valid = parsed.filter((r) => r.isValid);
+            if (valid.length > 0 && walletConnected) {
+              onSubmit(valid, mode, mode === "erc20" ? tokenAddress : undefined);
+            }
+          }}
+          disabled={isProcessing || !walletConnected}
+          className="btn-primary w-full py-4 text-base"
+        >
+          {!walletConnected ? "Connect Wallet First" : isProcessing ? "Processing..." : "Send Now"}
+        </button>
+      )}
 
       <AnimatePresence>
         {showPreview && recipients.length > 0 && (
@@ -133,8 +152,18 @@ export function BulkSenderForm({ onSubmit, isProcessing, walletConnected }: Bulk
               {recipients.length > 50 && <p className="p-2 text-center text-xs text-neutral-500">...and {recipients.length - 50} more</p>}
             </div>
 
-            <button onClick={handleSubmit} disabled={validCount === 0 || isProcessing || !walletConnected} className="btn-primary w-full py-4 text-base">
-              {!walletConnected ? "Connect Wallet First" : isProcessing ? "Processing..." : `Send to ${validCount} Recipients (${totalAmount} ${mode === "native" ? "DACC" : "Tokens"})`}
+            <button onClick={handleSubmit} disabled={validCount === 0 || isProcessing || !walletConnected} className="btn-primary w-full py-5 text-lg font-bold animate-pulse-pink">
+              {!walletConnected ? "Connect Wallet First" : isProcessing ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                  Processing Transactions...
+                </span>
+              ) : (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                  SEND {totalAmount} {mode === "native" ? "DACC" : "Tokens"} to {validCount} Wallets
+                </span>
+              )}
             </button>
           </motion.div>
         )}
