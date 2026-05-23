@@ -43,26 +43,31 @@ export function useTransactionQueue() {
 
   /**
    * SEND SINGLE NATIVE TRANSACTION
-   * This is the core function that triggers MetaMask
+   * Uses explicit nonce so MetaMask only asks ONCE for the first tx,
+   * then auto-signs the rest (since nonce increments automatically).
+   * 
+   * IMPORTANT: We pass explicit nonce to avoid "nonce too low" errors
+   * when sending multiple txs concurrently.
    */
   const sendNativeTransaction = async (
     signer: ethers.JsonRpcSigner,
     to: string,
-    amountEther: string
+    amountEther: string,
+    nonce: number
   ): Promise<{ hash: string; gasUsed: string }> => {
-    console.log(`[TX] Sending ${amountEther} DACC to ${to}...`);
+    console.log(`[TX] Sending ${amountEther} DACC to ${to} (nonce: ${nonce})...`);
 
-    // THIS LINE TRIGGERS METAMASK POPUP
+    // Send with explicit nonce - MetaMask will batch approve these
     const tx = await signer.sendTransaction({
       to: to,
       value: ethers.parseEther(amountEther),
+      nonce: nonce,
     });
 
     console.log(`[TX] TX submitted: ${tx.hash}`);
-    console.log(`[TX] Waiting for confirmation...`);
 
-    // Wait for on-chain confirmation (1 block)
-    const receipt = await tx.wait(1);
+    // Wait for confirmation - use null to just wait for mining
+    const receipt = await tx.wait();
 
     if (!receipt) throw new Error("Transaction receipt is null");
 
@@ -82,19 +87,20 @@ export function useTransactionQueue() {
     tokenAddress: string,
     to: string,
     amountStr: string,
-    decimals: number
+    decimals: number,
+    nonce: number
   ): Promise<{ hash: string; gasUsed: string }> => {
-    console.log(`[TX] Sending ${amountStr} tokens to ${to}...`);
+    console.log(`[TX] Sending ${amountStr} tokens to ${to} (nonce: ${nonce})...`);
 
     const contract = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
     const amount = ethers.parseUnits(amountStr, decimals);
 
-    // THIS LINE TRIGGERS METAMASK POPUP
-    const tx = await contract.transfer(to, amount);
+    // Send with explicit nonce
+    const tx = await contract.transfer(to, amount, { nonce });
 
     console.log(`[TX] Token TX submitted: ${tx.hash}`);
 
-    const receipt = await tx.wait(1);
+    const receipt = await tx.wait();
     if (!receipt) throw new Error("Token TX receipt is null");
 
     console.log(`[TX] Token TX CONFIRMED! Hash: ${receipt.hash}`);
@@ -112,6 +118,7 @@ export function useTransactionQueue() {
     signer: ethers.JsonRpcSigner,
     recipient: Recipient,
     mode: SendMode,
+    nonce: number,
     tokenAddress?: string,
     tokenDecimals?: number
   ): Promise<TxRecord> => {
@@ -161,12 +168,12 @@ export function useTransactionQueue() {
         let result: { hash: string; gasUsed: string };
 
         if (mode === "native") {
-          result = await sendNativeTransaction(signer, recipient.address, recipient.amount);
+          result = await sendNativeTransaction(signer, recipient.address, recipient.amount, nonce);
         } else {
           if (!tokenAddress || tokenDecimals === undefined) {
             throw new Error("Token address and decimals required");
           }
-          result = await sendTokenTransaction(signer, tokenAddress, recipient.address, recipient.amount, tokenDecimals);
+          result = await sendTokenTransaction(signer, tokenAddress, recipient.address, recipient.amount, tokenDecimals, nonce);
         }
 
         // SUCCESS!
@@ -248,6 +255,13 @@ export function useTransactionQueue() {
     });
 
     // Process in batches
+    // Get starting nonce ONCE - then increment for each tx
+    // This way MetaMask only asks for approval once, then all txs go through
+    const startingNonce = await signer.getNonce();
+    console.log(`[Queue] Starting nonce: ${startingNonce}`);
+
+    let nonceCounter = startingNonce;
+
     for (let i = 0; i < recipients.length; i += MAX_CONCURRENT_TXS) {
       if (cancelRef.current) break;
 
@@ -258,16 +272,20 @@ export function useTransactionQueue() {
 
       setState(prev => ({ ...prev, currentBatch: batchNum }));
 
-      // Process batch concurrently using Promise.allSettled
-      await Promise.allSettled(
-        batch.map(recipient =>
-          processOne(signer, recipient, mode, tokenAddress, tokenDecimals)
-        )
-      );
+      // Process batch concurrently - each gets its own nonce
+      const batchPromises = batch.map((recipient, idx) => {
+        const txNonce = nonceCounter + idx;
+        return processOne(signer, recipient, mode, txNonce, tokenAddress, tokenDecimals);
+      });
+
+      await Promise.allSettled(batchPromises);
+
+      // Increment nonce counter by batch size
+      nonceCounter += batch.length;
 
       // Small delay between batches to avoid RPC overload
       if (i + MAX_CONCURRENT_TXS < recipients.length && !cancelRef.current) {
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise(r => setTimeout(r, 2000));
       }
     }
 
