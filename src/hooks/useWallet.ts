@@ -119,7 +119,7 @@ export function useWallet() {
       }
 
       const address = accounts[0];
-      const browserProvider = new ethers.BrowserProvider(window.ethereum as ethers.Eip1193Provider);
+      const browserProvider = new ethers.BrowserProvider(window.ethereum as any);
       const walletSigner = await browserProvider.getSigner();
       const network = await browserProvider.getNetwork();
       const chainId = Number(network.chainId);

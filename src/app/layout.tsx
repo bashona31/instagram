@@ -1,8 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "@/styles/globals.css";
-
-const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "DAC Bulk Sender | Fast Multi-Wallet Token Distribution",
@@ -31,7 +28,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
-      <body className={`${inter.className} antialiased`}>
+      <body className="font-sans antialiased">
         {/* Animated background gradient */}
         <div className="fixed inset-0 -z-10 animated-gradient-bg" />
         
