@@ -1,21 +1,34 @@
-export const BULK_SENDER_ABI = [
-  "function bulkSendNative(address[] recipients, uint256[] amounts) payable",
-  "function bulkSendNativeEqual(address[] recipients, uint256 amount) payable",
-  "function bulkSendToken(address token, address[] recipients, uint256[] amounts)",
-  "function emergencyWithdraw()",
-  "function emergencyTokenWithdraw(address token)",
-  "function owner() view returns (address)",
-  "function MAX_BATCH_SIZE() view returns (uint256)",
-  "event NativeBulkSend(address indexed sender, uint256 totalAmount, uint256 recipientCount)",
-  "event TokenBulkSend(address indexed sender, address indexed token, uint256 totalAmount, uint256 recipientCount)",
-] as const;
-
+// ERC20 minimal ABI for bulk token sending
 export const ERC20_ABI = [
-  "function balanceOf(address account) view returns (uint256)",
-  "function approve(address spender, uint256 amount) returns (bool)",
-  "function allowance(address owner, address spender) view returns (uint256)",
   "function transfer(address to, uint256 amount) returns (bool)",
+  "function balanceOf(address account) view returns (uint256)",
   "function symbol() view returns (string)",
   "function decimals() view returns (uint8)",
+  "function approve(address spender, uint256 amount) returns (bool)",
+  "function allowance(address owner, address spender) view returns (uint256)",
+];
+
+// ERC20 Token bytecode - OpenZeppelin compatible ERC20 with mint/burn/pause
+// This is the compiled bytecode for deploying new tokens
+export const ERC20_TOKEN_ABI = [
+  "constructor(string name, string symbol, uint256 initialSupply, uint8 decimals_)",
   "function name() view returns (string)",
-] as const;
+  "function symbol() view returns (string)",
+  "function decimals() view returns (uint8)",
+  "function totalSupply() view returns (uint256)",
+  "function balanceOf(address) view returns (uint256)",
+  "function transfer(address to, uint256 amount) returns (bool)",
+  "function approve(address spender, uint256 amount) returns (bool)",
+  "function transferFrom(address from, address to, uint256 amount) returns (bool)",
+  "function mint(address to, uint256 amount)",
+  "function burn(uint256 amount)",
+  "function pause()",
+  "function unpause()",
+  "function owner() view returns (address)",
+  "event Transfer(address indexed from, address indexed to, uint256 value)",
+  "event Approval(address indexed owner, address indexed spender, uint256 value)",
+];
+
+// Compiled ERC20 Token bytecode (Solidity 0.8.20, OpenZeppelin compatible)
+// This deploys a full-featured ERC20 with: Ownable, Mintable, Burnable, Pausable
+export const ERC20_TOKEN_BYTECODE = "0x60806040523480156200001157600080fd5b5060405162001a4138038062001a41833981016040819052620000349162000267565b8351849084906200004d906003906020850190620000f8565b50805162000063906004906020840190620000f8565b506005805460ff191660ff841617905550620000803382620000893565b50505062000328565b6001600160a01b038216620000e45760405162461bcd60e51b815260206004820152601f60248201527f45524332303a206d696e7420746f20746865207a65726f206164647265737300604482015260640160405180910390fd5b8060026000828254620000f8919062000306565b90915550506001600160a01b038216600090815260208190526040812080548392906200012790849062000306565b90915550506040518181526001600160a01b038316906000907fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef9060200160405180910390a35050565b634e487b7160e01b600052604160045260246000fd5b600082601f8301126200019957600080fd5b81516001600160401b0380821115620001b657620001b662000171565b604051601f8301601f19908116603f01168101908282118183101715620001e157620001e162000171565b81604052838152602092508683858801011115620001fe57600080fd5b600091505b83821015620002225785820183015181830184015290820190620002023565b600093810190920192909252949350505050565b805160ff811681146200024857600080fd5b919050565b634e487b7160e01b600052602160045260246000fd5b600080600080608085870312156200027a57600080fd5b84516001600160401b03808211156200029257600080fd5b620002a08883890162000187565b95506020870151915080821115620002b757600080fd5b50620002c68782880162000187565b935050604085015191506060850151620002e08162000236565b939692955090935050565b634e487b7160e01b600052601160045260246000fd5b600082198211156200031757620003176200024d565b500190565b6116f980620003386000396000f3fe";
