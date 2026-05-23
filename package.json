@@ -2,7 +2,6 @@
   "name": "dac-bulk-sender",
   "version": "1.0.0",
   "private": true,
-  "description": "Advanced Web3 Bulk Sender for DAC Testnet",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -10,26 +9,26 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "next": "14.2.15",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "ethers": "^6.9.0",
-    "framer-motion": "^10.18.0",
-    "react-hot-toast": "^2.4.1",
-    "papaparse": "^5.4.1",
-    "clsx": "^2.1.0",
-    "tailwind-merge": "^2.2.0"
+    "next": "14.1.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "ethers": "6.9.0",
+    "framer-motion": "10.18.0",
+    "react-hot-toast": "2.4.1",
+    "papaparse": "5.4.1",
+    "clsx": "2.1.0",
+    "tailwind-merge": "2.2.0"
   },
   "devDependencies": {
-    "typescript": "^5.3.0",
-    "@types/node": "^20.10.0",
-    "@types/react": "^18.2.0",
-    "@types/react-dom": "^18.2.0",
-    "@types/papaparse": "^5.3.14",
-    "tailwindcss": "^3.4.0",
-    "autoprefixer": "^10.4.16",
-    "postcss": "^8.4.32",
-    "eslint": "^8.56.0",
-    "eslint-config-next": "14.2.15"
+    "typescript": "5.3.3",
+    "@types/node": "20.10.0",
+    "@types/react": "18.2.45",
+    "@types/react-dom": "18.2.18",
+    "@types/papaparse": "5.3.14",
+    "tailwindcss": "3.4.0",
+    "autoprefixer": "10.4.16",
+    "postcss": "8.4.32",
+    "eslint": "8.56.0",
+    "eslint-config-next": "14.1.0"
   }
 }

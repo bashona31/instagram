@@ -2,208 +2,79 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ============================================================
-   Global Styles - Premium Pink + White Glassmorphism Theme
-   ============================================================ */
-
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --primary: 330 81% 60%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 330 30% 96%;
-    --secondary-foreground: 330 81% 40%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 330 81% 95%;
-    --accent-foreground: 330 81% 40%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 330 20% 90%;
-    --input: 330 20% 90%;
-    --ring: 330 81% 60%;
-    --radius: 1rem;
     --pink-glow: rgba(236, 72, 153, 0.15);
   }
-
   .dark {
-    --background: 240 20% 6%;
-    --foreground: 0 0% 98%;
-    --card: 240 20% 8%;
-    --card-foreground: 0 0% 98%;
-    --primary: 330 81% 60%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 240 20% 12%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 20% 15%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 330 81% 15%;
-    --accent-foreground: 330 81% 80%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 20% 18%;
-    --input: 240 20% 18%;
-    --ring: 330 81% 60%;
     --pink-glow: rgba(236, 72, 153, 0.25);
   }
-}
-
-@layer base {
   * {
-    @apply border-border;
+    @apply border-neutral-800;
   }
-
   body {
-    @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    @apply bg-[#0a0a1a] text-white;
   }
 }
 
 @layer components {
-  /* Glassmorphism Card */
   .glass-card {
-    @apply relative overflow-hidden rounded-2xl border border-white/10 backdrop-blur-xl;
-    background: linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.05) 0%,
-      rgba(255, 255, 255, 0.02) 100%
-    );
-    box-shadow:
-      0 8px 32px rgba(0, 0, 0, 0.1),
-      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    @apply relative overflow-hidden rounded-2xl border border-white/10 backdrop-blur-xl p-6;
+    background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.1);
   }
-
-  .dark .glass-card {
-    background: linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.05) 0%,
-      rgba(255, 255, 255, 0.01) 100%
-    );
-    border-color: rgba(255, 255, 255, 0.08);
+  .glass-card:hover {
+    border-color: rgba(236, 72, 153, 0.3);
+    box-shadow: 0 0 20px var(--pink-glow), 0 8px 32px rgba(0,0,0,0.2);
   }
-
-  .light .glass-card {
-    background: linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.8) 0%,
-      rgba(255, 255, 255, 0.6) 100%
-    );
-    border-color: rgba(236, 72, 153, 0.15);
-  }
-
-  /* Pink Glow Effect */
-  .pink-glow {
-    box-shadow: 0 0 20px var(--pink-glow), 0 0 40px rgba(236, 72, 153, 0.1);
-  }
-
-  .pink-glow-lg {
-    box-shadow: 0 0 40px var(--pink-glow), 0 0 80px rgba(236, 72, 153, 0.15);
-  }
-
-  /* Gradient Text */
   .gradient-text {
     @apply bg-clip-text text-transparent;
     background-image: linear-gradient(135deg, #ec4899 0%, #f472b6 50%, #fbbf24 100%);
   }
-
-  /* Animated Gradient Background */
   .animated-gradient-bg {
-    background: linear-gradient(-45deg, #0f0f23, #1a0a2e, #16213e, #1a1a2e);
+    background: linear-gradient(-45deg, #0a0a1a, #1a0a2e, #0f1a3e, #0a0a1a);
     background-size: 400% 400%;
     animation: gradientShift 15s ease infinite;
   }
-
-  /* Button Styles */
   .btn-primary {
-    @apply relative overflow-hidden rounded-xl bg-gradient-to-r from-pink-500 to-pink-600 
-           px-6 py-3 font-semibold text-white shadow-lg transition-all duration-300
-           hover:from-pink-600 hover:to-pink-700 hover:shadow-glow 
-           active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply relative overflow-hidden rounded-xl bg-gradient-to-r from-pink-500 to-pink-600 px-6 py-3 font-semibold text-white shadow-lg transition-all duration-300 hover:from-pink-600 hover:to-pink-700 hover:shadow-glow active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed;
   }
-
   .btn-secondary {
-    @apply relative overflow-hidden rounded-xl border border-pink-500/30 bg-pink-500/10
-           px-6 py-3 font-semibold text-pink-400 transition-all duration-300
-           hover:bg-pink-500/20 hover:border-pink-500/50 hover:shadow-glow
-           active:scale-[0.98];
+    @apply rounded-xl border border-pink-500/30 bg-pink-500/10 px-6 py-3 font-semibold text-pink-400 transition-all duration-300 hover:bg-pink-500/20 hover:border-pink-500/50 active:scale-[0.98];
   }
-
   .btn-ghost {
-    @apply rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200
-           hover:bg-white/5 active:scale-[0.98];
+    @apply rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 hover:bg-white/5 active:scale-[0.98];
   }
-
-  /* Input Styles */
   .input-glass {
-    @apply w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 
-           text-foreground placeholder:text-muted-foreground backdrop-blur-sm
-           transition-all duration-300 focus:border-pink-500/50 
-           focus:outline-none focus:ring-2 focus:ring-pink-500/20;
+    @apply w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-neutral-500 backdrop-blur-sm transition-all duration-300 focus:border-pink-500/50 focus:outline-none focus:ring-2 focus:ring-pink-500/20;
   }
-
-  /* Scrollbar Styles */
+  .status-success {
+    @apply rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-xs font-medium text-emerald-400;
+  }
+  .status-failed {
+    @apply rounded-full bg-red-500/20 px-2.5 py-0.5 text-xs font-medium text-red-400;
+  }
+  .status-pending {
+    @apply rounded-full bg-yellow-500/20 px-2.5 py-0.5 text-xs font-medium text-yellow-400;
+  }
+  .status-processing {
+    @apply rounded-full bg-blue-500/20 px-2.5 py-0.5 text-xs font-medium text-blue-400;
+  }
   .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
-    height: 6px;
   }
-
   .custom-scrollbar::-webkit-scrollbar-track {
     background: transparent;
   }
-
   .custom-scrollbar::-webkit-scrollbar-thumb {
     background: rgba(236, 72, 153, 0.3);
     border-radius: 3px;
   }
-
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(236, 72, 153, 0.5);
-  }
-
-  /* Loading Skeleton */
-  .skeleton {
-    @apply relative overflow-hidden rounded-lg bg-white/5;
-  }
-
-  .skeleton::after {
-    content: "";
-    @apply absolute inset-0;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgba(236, 72, 153, 0.05),
-      transparent
-    );
-    animation: shimmer 2s linear infinite;
-    background-size: 200% 100%;
-  }
-
-  /* Status Badge */
-  .status-success {
-    @apply rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-xs font-medium text-emerald-400;
-  }
-
-  .status-failed {
-    @apply rounded-full bg-red-500/20 px-2.5 py-0.5 text-xs font-medium text-red-400;
-  }
-
-  .status-pending {
-    @apply rounded-full bg-yellow-500/20 px-2.5 py-0.5 text-xs font-medium text-yellow-400;
-  }
-
-  .status-processing {
-    @apply rounded-full bg-blue-500/20 px-2.5 py-0.5 text-xs font-medium text-blue-400;
-  }
 }
 
-/* Keyframe Animations */
 @keyframes gradientShift {
-  0% { background-position: 0% 50%; }
+  0%, 100% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
 }
 
 @keyframes shimmer {
@@ -211,17 +82,6 @@
   100% { background-position: 200% 0; }
 }
 
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
-}
-
-@keyframes pulsePink {
-  0%, 100% { box-shadow: 0 0 20px rgba(236, 72, 153, 0.3); }
-  50% { box-shadow: 0 0 40px rgba(236, 72, 153, 0.6); }
-}
-
-/* Selection Color */
 ::selection {
   background: rgba(236, 72, 153, 0.3);
   color: white;

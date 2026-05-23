@@ -1,189 +1,94 @@
 "use client";
 
-// ============================================================
-// Main Page - DAC Bulk Sender Application
-// ============================================================
-
 import { useCallback } from "react";
 import { Toaster, toast } from "react-hot-toast";
 import { motion } from "framer-motion";
 import { useWallet, useTransactionQueue, useTheme } from "@/hooks";
-import {
-  Header,
-  BulkSenderForm,
-  TransactionProgress,
-  AnalyticsDashboard,
-  NetworkBadge,
-  WalletPrompt,
-  Footer,
-} from "@/components";
+import { Header } from "@/components/Header";
+import { BulkSenderForm } from "@/components/BulkSenderForm";
+import { TransactionProgress } from "@/components/TransactionProgress";
+import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
+import { WalletPrompt } from "@/components/WalletPrompt";
+import { Footer } from "@/components/Footer";
 import { Recipient, SendMode } from "@/types";
 
 export default function HomePage() {
-  const { wallet, signer, isConnecting, isMetaMaskAvailable, connect, disconnect, switchNetwork, refreshBalance } = useWallet();
-  const { queueState, startProcessing, pause, resume, cancel, reset } = useTransactionQueue();
+  const { wallet, signer, isConnecting, isMetaMaskAvailable,
+    connect, disconnect, switchNetwork, refreshBalance } = useWallet();
+  const { queueState, startProcessing, pause, resume, cancel, reset }
+    = useTransactionQueue();
   const { theme, toggleTheme } = useTheme();
 
-  /**
-   * Handle wallet connection
-   */
+
   const handleConnect = useCallback(async () => {
     try {
       await connect();
-      toast.success("Wallet connected successfully!", {
-        style: {
-          background: "rgba(16, 16, 32, 0.95)",
-          color: "#fff",
-          border: "1px solid rgba(236, 72, 153, 0.3)",
-        },
-        iconTheme: { primary: "#ec4899", secondary: "#fff" },
-      });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Failed to connect wallet";
-      toast.error(message, {
-        style: {
-          background: "rgba(16, 16, 32, 0.95)",
-          color: "#fff",
-          border: "1px solid rgba(239, 68, 68, 0.3)",
-        },
-      });
+      toast.success("Wallet connected!");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to connect");
     }
   }, [connect]);
 
-  /**
-   * Handle wallet disconnection
-   */
   const handleDisconnect = useCallback(() => {
     disconnect();
     reset();
-    toast.success("Wallet disconnected", {
-      style: {
-        background: "rgba(16, 16, 32, 0.95)",
-        color: "#fff",
-        border: "1px solid rgba(236, 72, 153, 0.3)",
-      },
-    });
+    toast.success("Wallet disconnected");
   }, [disconnect, reset]);
 
-  /**
-   * Handle bulk send submission
-   */
-  const handleSubmit = useCallback(
-    async (recipients: Recipient[], mode: SendMode, tokenAddress?: string) => {
-      if (!signer) {
-        toast.error("Please connect your wallet first");
-        return;
-      }
-
-      toast.loading(`Sending to ${recipients.length} recipients...`, {
-        id: "bulk-send",
-        style: {
-          background: "rgba(16, 16, 32, 0.95)",
-          color: "#fff",
-          border: "1px solid rgba(236, 72, 153, 0.3)",
-        },
-      });
-
-      try {
-        await startProcessing(signer, recipients, mode, tokenAddress, 18);
-        toast.dismiss("bulk-send");
-        toast.success("All transactions processed!", {
-          style: {
-            background: "rgba(16, 16, 32, 0.95)",
-            color: "#fff",
-            border: "1px solid rgba(16, 185, 129, 0.3)",
-          },
-          iconTheme: { primary: "#10b981", secondary: "#fff" },
-        });
-        // Refresh balance after sending
-        refreshBalance();
-      } catch (error: unknown) {
-        toast.dismiss("bulk-send");
-        const message = error instanceof Error ? error.message : "Transaction processing failed";
-        toast.error(message, {
-          style: {
-            background: "rgba(16, 16, 32, 0.95)",
-            color: "#fff",
-            border: "1px solid rgba(239, 68, 68, 0.3)",
-          },
-        });
-      }
-    },
-    [signer, startProcessing, refreshBalance]
-  );
+  const handleSubmit = useCallback(async (
+    recipients: Recipient[], mode: SendMode, tokenAddress?: string
+  ) => {
+    if (!signer) { toast.error("Connect wallet first"); return; }
+    toast.loading(`Sending to ${recipients.length} recipients...`, { id: "bs" });
+    try {
+      await startProcessing(signer, recipients, mode, tokenAddress, 18);
+      toast.dismiss("bs");
+      toast.success("All transactions processed!");
+      refreshBalance();
+    } catch (err: any) {
+      toast.dismiss("bs");
+      toast.error(err?.message || "Failed");
+    }
+  }, [signer, startProcessing, refreshBalance]);
 
   return (
     <>
-      {/* Toast Notifications */}
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          duration: 4000,
-          style: {
-            background: "rgba(16, 16, 32, 0.95)",
-            color: "#fff",
-            border: "1px solid rgba(255, 255, 255, 0.1)",
-            borderRadius: "12px",
-            backdropFilter: "blur(10px)",
-          },
-        }}
-      />
-
+      <Toaster position="top-right" toastOptions={{ style: {
+        background: "rgba(10,10,26,0.95)", color: "#fff",
+        border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px",
+      }}} />
       <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
-        {/* Header */}
-        <Header
-          wallet={wallet}
-          theme={theme}
-          onToggleTheme={toggleTheme}
-          onConnect={handleConnect}
-          onDisconnect={handleDisconnect}
-          isConnecting={isConnecting}
-        />
+        <Header wallet={wallet} theme={theme} onToggleTheme={toggleTheme}
+          onConnect={handleConnect} onDisconnect={handleDisconnect} isConnecting={isConnecting} />
 
-        {/* Network Badge */}
-        {wallet.isConnected && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mb-6 flex justify-center"
-          >
-            <NetworkBadge
-              isCorrectNetwork={wallet.isCorrectNetwork}
-              onSwitch={switchNetwork}
-            />
+
+        {wallet.isConnected && !wallet.isCorrectNetwork && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-6 flex justify-center">
+            <button onClick={switchNetwork} className="flex items-center gap-2 rounded-full bg-red-500/10 px-4 py-2 border border-red-500/20 text-sm text-red-400 hover:bg-red-500/20 transition-all">
+              <div className="h-2 w-2 rounded-full bg-red-400" /> Wrong Network - Click to Switch
+            </button>
           </motion.div>
         )}
 
-        {/* Main Content */}
+        {wallet.isConnected && wallet.isCorrectNetwork && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-6 flex justify-center">
+            <div className="flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1.5 border border-emerald-500/20">
+              <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-xs font-medium text-emerald-400">DAC Testnet</span>
+            </div>
+          </motion.div>
+        )}
+
         {!wallet.isConnected ? (
-          <WalletPrompt
-            onConnect={handleConnect}
-            isConnecting={isConnecting}
-            isMetaMaskAvailable={isMetaMaskAvailable}
-          />
+          <WalletPrompt onConnect={handleConnect} isConnecting={isConnecting} isMetaMaskAvailable={isMetaMaskAvailable} />
         ) : (
           <div className="space-y-6">
-            {/* Bulk Sender Form */}
-            <BulkSenderForm
-              onSubmit={handleSubmit}
-              isProcessing={queueState.isRunning}
-              walletConnected={wallet.isConnected}
-            />
-
-            {/* Transaction Progress */}
-            <TransactionProgress
-              queueState={queueState}
-              onPause={pause}
-              onResume={resume}
-              onCancel={cancel}
-            />
-
-            {/* Analytics Dashboard */}
+            <BulkSenderForm onSubmit={handleSubmit} isProcessing={queueState.isRunning} walletConnected={wallet.isConnected} />
+            <TransactionProgress queueState={queueState} onPause={pause} onResume={resume} onCancel={cancel} />
             <AnalyticsDashboard queueState={queueState} />
           </div>
         )}
 
-        {/* Footer */}
         <Footer />
       </div>
     </>
