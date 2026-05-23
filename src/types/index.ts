@@ -1,5 +1,3 @@
-export type WalletProvider = "metamask" | "walletconnect";
-
 export interface NetworkConfig {
   chainId: number;
   chainIdHex: string;
@@ -15,7 +13,6 @@ export interface WalletState {
   balance: string;
   chainId: number | null;
   isCorrectNetwork: boolean;
-  provider: WalletProvider | null;
 }
 
 export interface Recipient {
@@ -27,7 +24,7 @@ export interface Recipient {
   error?: string;
 }
 
-export enum TransactionStatus {
+export enum TxStatus {
   PENDING = "pending",
   PROCESSING = "processing",
   SUCCESS = "success",
@@ -36,11 +33,11 @@ export enum TransactionStatus {
   CANCELLED = "cancelled",
 }
 
-export interface TransactionRecord {
+export interface TxRecord {
   id: string;
   recipient: string;
   amount: string;
-  status: TransactionStatus;
+  status: TxStatus;
   hash?: string;
   error?: string;
   gasUsed?: string;
@@ -50,32 +47,36 @@ export interface TransactionRecord {
 
 export type SendMode = "native" | "erc20";
 
-export interface BulkSendConfig {
-  mode: SendMode;
-  tokenAddress?: string;
-  tokenSymbol?: string;
-  tokenDecimals?: number;
-  recipients: Recipient[];
-}
-
 export interface QueueState {
   isRunning: boolean;
   isPaused: boolean;
-  totalTransactions: number;
-  completedTransactions: number;
-  successCount: number;
-  failedCount: number;
+  total: number;
+  completed: number;
+  success: number;
+  failed: number;
   currentBatch: number;
   totalBatches: number;
-  estimatedGas: string;
-  totalAmountSent: string;
-  totalGasUsed: string;
-  transactions: TransactionRecord[];
+  transactions: TxRecord[];
 }
 
-export interface CSVRow {
+export interface TokenConfig {
+  name: string;
+  symbol: string;
+  supply: string;
+  decimals: number;
+  mintable: boolean;
+  burnable: boolean;
+  pausable: boolean;
+}
+
+export interface DeployedToken {
   address: string;
-  amount: string;
+  name: string;
+  symbol: string;
+  supply: string;
+  txHash: string;
+  timestamp: number;
 }
 
 export type ThemeMode = "dark" | "light";
+export type TabView = "sender" | "creator" | "history";

@@ -1,151 +1,310 @@
 "use client";
+/**
+ * useTransactionQueue Hook - REAL blockchain transaction execution
+ * 
+ * CRITICAL: This hook actually sends transactions to the blockchain.
+ * Each transaction triggers a MetaMask confirmation popup.
+ * 
+ * Flow per transaction:
+ * 1. Get signer from useWallet hook
+ * 2. Call signer.sendTransaction({ to, value }) - TRIGGERS METAMASK POPUP
+ * 3. Wait for tx.wait() - waits for on-chain confirmation
+ * 4. Get receipt with hash and gasUsed
+ * 5. Update UI with real results
+ * 
+ * Batch processing:
+ * - Process MAX_CONCURRENT_TXS transactions simultaneously
+ * - Use Promise.allSettled for concurrent execution
+ * - Retry failed transactions up to MAX_RETRY_ATTEMPTS times
+ */
 
 import { useState, useCallback, useRef } from "react";
 import { ethers } from "ethers";
-import { TransactionRecord, TransactionStatus, QueueState, Recipient, SendMode } from "@/types";
-import { MAX_CONCURRENT_TXS, MAX_RETRY_ATTEMPTS, GAS_BUFFER_MULTIPLIER } from "@/lib/constants";
+import { TxRecord, TxStatus, QueueState, Recipient, SendMode } from "@/types";
+import { MAX_CONCURRENT_TXS, MAX_RETRY_ATTEMPTS } from "@/lib/constants";
 import { ERC20_ABI } from "@/contracts/abi";
 
-const initialQueueState: QueueState = {
+const INITIAL_STATE: QueueState = {
   isRunning: false,
   isPaused: false,
-  totalTransactions: 0,
-  completedTransactions: 0,
-  successCount: 0,
-  failedCount: 0,
+  total: 0,
+  completed: 0,
+  success: 0,
+  failed: 0,
   currentBatch: 0,
   totalBatches: 0,
-  estimatedGas: "0",
-  totalAmountSent: "0",
-  totalGasUsed: "0",
   transactions: [],
 };
 
 export function useTransactionQueue() {
-  const [queueState, setQueueState] = useState<QueueState>(initialQueueState);
-  const isPausedRef = useRef(false);
-  const isCancelledRef = useRef(false);
+  const [state, setState] = useState<QueueState>(INITIAL_STATE);
+  const pauseRef = useRef(false);
+  const cancelRef = useRef(false);
 
-  const processNativeTransfer = async (signer: ethers.Signer, recipient: string, amount: string) => {
+  /**
+   * SEND SINGLE NATIVE TRANSACTION
+   * This is the core function that triggers MetaMask
+   */
+  const sendNativeTransaction = async (
+    signer: ethers.JsonRpcSigner,
+    to: string,
+    amountEther: string
+  ): Promise<{ hash: string; gasUsed: string }> => {
+    console.log(`[TX] Sending ${amountEther} DACC to ${to}...`);
+
+    // THIS LINE TRIGGERS METAMASK POPUP
     const tx = await signer.sendTransaction({
-      to: recipient,
-      value: ethers.parseEther(amount),
+      to: to,
+      value: ethers.parseEther(amountEther),
     });
-    const receipt = await tx.wait();
-    if (!receipt) throw new Error("Receipt is null");
-    return { hash: receipt.hash, gasUsed: receipt.gasUsed.toString() };
+
+    console.log(`[TX] TX submitted: ${tx.hash}`);
+    console.log(`[TX] Waiting for confirmation...`);
+
+    // Wait for on-chain confirmation (1 block)
+    const receipt = await tx.wait(1);
+
+    if (!receipt) throw new Error("Transaction receipt is null");
+
+    console.log(`[TX] CONFIRMED! Hash: ${receipt.hash}, Gas: ${receipt.gasUsed.toString()}`);
+
+    return {
+      hash: receipt.hash,
+      gasUsed: receipt.gasUsed.toString(),
+    };
   };
 
-  const processTokenTransfer = async (signer: ethers.Signer, tokenAddress: string, recipient: string, amount: string, decimals: number) => {
+  /**
+   * SEND SINGLE ERC20 TRANSFER
+   */
+  const sendTokenTransaction = async (
+    signer: ethers.JsonRpcSigner,
+    tokenAddress: string,
+    to: string,
+    amountStr: string,
+    decimals: number
+  ): Promise<{ hash: string; gasUsed: string }> => {
+    console.log(`[TX] Sending ${amountStr} tokens to ${to}...`);
+
     const contract = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
-    const tx = await contract.transfer(recipient, ethers.parseUnits(amount, decimals));
-    const receipt = await tx.wait();
-    if (!receipt) throw new Error("Receipt is null");
-    return { hash: receipt.hash, gasUsed: receipt.gasUsed.toString() };
+    const amount = ethers.parseUnits(amountStr, decimals);
+
+    // THIS LINE TRIGGERS METAMASK POPUP
+    const tx = await contract.transfer(to, amount);
+
+    console.log(`[TX] Token TX submitted: ${tx.hash}`);
+
+    const receipt = await tx.wait(1);
+    if (!receipt) throw new Error("Token TX receipt is null");
+
+    console.log(`[TX] Token TX CONFIRMED! Hash: ${receipt.hash}`);
+
+    return {
+      hash: receipt.hash,
+      gasUsed: receipt.gasUsed.toString(),
+    };
   };
 
-  const processTransaction = async (signer: ethers.Signer, recipient: Recipient, mode: SendMode, tokenAddress?: string, tokenDecimals?: number): Promise<TransactionRecord> => {
-    const record: TransactionRecord = {
+  /**
+   * Process single recipient with retry logic
+   */
+  const processOne = async (
+    signer: ethers.JsonRpcSigner,
+    recipient: Recipient,
+    mode: SendMode,
+    tokenAddress?: string,
+    tokenDecimals?: number
+  ): Promise<TxRecord> => {
+    const record: TxRecord = {
       id: recipient.id,
       recipient: recipient.address,
       amount: recipient.amount,
-      status: TransactionStatus.PROCESSING,
+      status: TxStatus.PROCESSING,
       retryCount: 0,
       timestamp: Date.now(),
     };
 
-    setQueueState((prev) => ({
+    // Update status to processing
+    setState(prev => ({
       ...prev,
-      transactions: prev.transactions.map((t) => t.id === record.id ? { ...t, status: TransactionStatus.PROCESSING } : t),
+      transactions: prev.transactions.map(t =>
+        t.id === record.id ? { ...t, status: TxStatus.PROCESSING } : t
+      ),
     }));
 
-    let lastError: Error | null = null;
+    let lastError: string = "";
 
     for (let attempt = 0; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
       try {
-        while (isPausedRef.current) await new Promise((r) => setTimeout(r, 500));
-        if (isCancelledRef.current) { record.status = TransactionStatus.CANCELLED; return record; }
+        // Check pause/cancel
+        while (pauseRef.current) {
+          await new Promise(r => setTimeout(r, 500));
+        }
+        if (cancelRef.current) {
+          record.status = TxStatus.CANCELLED;
+          return record;
+        }
 
+        // Retry delay with exponential backoff
         if (attempt > 0) {
-          setQueueState((prev) => ({
+          console.log(`[TX] Retry #${attempt} for ${recipient.address}...`);
+          setState(prev => ({
             ...prev,
-            transactions: prev.transactions.map((t) => t.id === record.id ? { ...t, status: TransactionStatus.RETRYING, retryCount: attempt } : t),
+            transactions: prev.transactions.map(t =>
+              t.id === record.id ? { ...t, status: TxStatus.RETRYING, retryCount: attempt } : t
+            ),
           }));
-          await new Promise((r) => setTimeout(r, Math.min(1000 * Math.pow(2, attempt), 10000)));
+          await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
         }
 
+        // EXECUTE THE ACTUAL TRANSACTION
         let result: { hash: string; gasUsed: string };
+
         if (mode === "native") {
-          result = await processNativeTransfer(signer, recipient.address, recipient.amount);
+          result = await sendNativeTransaction(signer, recipient.address, recipient.amount);
         } else {
-          if (!tokenAddress || tokenDecimals === undefined) throw new Error("Token config required");
-          result = await processTokenTransfer(signer, tokenAddress, recipient.address, recipient.amount, tokenDecimals);
+          if (!tokenAddress || tokenDecimals === undefined) {
+            throw new Error("Token address and decimals required");
+          }
+          result = await sendTokenTransaction(signer, tokenAddress, recipient.address, recipient.amount, tokenDecimals);
         }
 
+        // SUCCESS!
         record.hash = result.hash;
         record.gasUsed = result.gasUsed;
-        record.status = TransactionStatus.SUCCESS;
+        record.status = TxStatus.SUCCESS;
 
-        setQueueState((prev) => ({
+        setState(prev => ({
           ...prev,
-          successCount: prev.successCount + 1,
-          completedTransactions: prev.completedTransactions + 1,
-          totalGasUsed: (BigInt(prev.totalGasUsed || "0") + BigInt(result.gasUsed)).toString(),
-          totalAmountSent: (parseFloat(prev.totalAmountSent) + parseFloat(recipient.amount)).toString(),
-          transactions: prev.transactions.map((t) => t.id === record.id ? { ...t, ...record } : t),
+          success: prev.success + 1,
+          completed: prev.completed + 1,
+          transactions: prev.transactions.map(t =>
+            t.id === record.id ? { ...record } : t
+          ),
         }));
+
         return record;
-      } catch (error: any) {
-        lastError = error instanceof Error ? error : new Error(String(error));
+
+      } catch (err: any) {
+        lastError = err?.message || err?.reason || "Transaction failed";
+        console.error(`[TX] Attempt ${attempt + 1} failed for ${recipient.address}:`, lastError);
       }
     }
 
-    record.status = TransactionStatus.FAILED;
-    record.error = lastError?.message || "Unknown error";
-    setQueueState((prev) => ({
+    // ALL RETRIES FAILED
+    record.status = TxStatus.FAILED;
+    record.error = lastError;
+
+    setState(prev => ({
       ...prev,
-      failedCount: prev.failedCount + 1,
-      completedTransactions: prev.completedTransactions + 1,
-      transactions: prev.transactions.map((t) => t.id === record.id ? { ...t, ...record } : t),
+      failed: prev.failed + 1,
+      completed: prev.completed + 1,
+      transactions: prev.transactions.map(t =>
+        t.id === record.id ? { ...record } : t
+      ),
     }));
+
     return record;
   };
 
-  const startProcessing = useCallback(async (signer: ethers.Signer, recipients: Recipient[], mode: SendMode, tokenAddress?: string, tokenDecimals?: number) => {
-    isPausedRef.current = false;
-    isCancelledRef.current = false;
+  /**
+   * START PROCESSING - Main entry point
+   * Takes a signer and list of recipients, processes them in batches
+   */
+  const startProcessing = useCallback(async (
+    signer: ethers.JsonRpcSigner,
+    recipients: Recipient[],
+    mode: SendMode,
+    tokenAddress?: string,
+    tokenDecimals?: number
+  ) => {
+    console.log(`[Queue] Starting processing: ${recipients.length} recipients, mode: ${mode}`);
+
+    pauseRef.current = false;
+    cancelRef.current = false;
+
     const totalBatches = Math.ceil(recipients.length / MAX_CONCURRENT_TXS);
-    const initialTxs: TransactionRecord[] = recipients.map((r) => ({
-      id: r.id, recipient: r.address, amount: r.amount, status: TransactionStatus.PENDING, retryCount: 0, timestamp: Date.now(),
+
+    // Initialize all transactions as pending
+    const initialTxs: TxRecord[] = recipients.map(r => ({
+      id: r.id,
+      recipient: r.address,
+      amount: r.amount,
+      status: TxStatus.PENDING,
+      retryCount: 0,
+      timestamp: Date.now(),
     }));
 
-    setQueueState({
-      isRunning: true, isPaused: false, totalTransactions: recipients.length, completedTransactions: 0,
-      successCount: 0, failedCount: 0, currentBatch: 0, totalBatches,
-      estimatedGas: (21000 * recipients.length).toString(), totalAmountSent: "0", totalGasUsed: "0", transactions: initialTxs,
+    setState({
+      isRunning: true,
+      isPaused: false,
+      total: recipients.length,
+      completed: 0,
+      success: 0,
+      failed: 0,
+      currentBatch: 0,
+      totalBatches,
+      transactions: initialTxs,
     });
 
+    // Process in batches
     for (let i = 0; i < recipients.length; i += MAX_CONCURRENT_TXS) {
-      if (isCancelledRef.current) break;
+      if (cancelRef.current) break;
+
       const batch = recipients.slice(i, i + MAX_CONCURRENT_TXS);
-      setQueueState((prev) => ({ ...prev, currentBatch: Math.floor(i / MAX_CONCURRENT_TXS) + 1 }));
-      await Promise.allSettled(batch.map((r) => processTransaction(signer, r, mode, tokenAddress, tokenDecimals)));
-      if (i + MAX_CONCURRENT_TXS < recipients.length) await new Promise((r) => setTimeout(r, 500));
+      const batchNum = Math.floor(i / MAX_CONCURRENT_TXS) + 1;
+
+      console.log(`[Queue] Processing batch ${batchNum}/${totalBatches} (${batch.length} txs)...`);
+
+      setState(prev => ({ ...prev, currentBatch: batchNum }));
+
+      // Process batch concurrently using Promise.allSettled
+      await Promise.allSettled(
+        batch.map(recipient =>
+          processOne(signer, recipient, mode, tokenAddress, tokenDecimals)
+        )
+      );
+
+      // Small delay between batches to avoid RPC overload
+      if (i + MAX_CONCURRENT_TXS < recipients.length && !cancelRef.current) {
+        await new Promise(r => setTimeout(r, 1000));
+      }
     }
 
-    setQueueState((prev) => ({ ...prev, isRunning: false }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setState(prev => ({ ...prev, isRunning: false }));
+    console.log("[Queue] Processing complete!");
+  }, []); // eslint-disable-line
+
+  const pause = useCallback(() => {
+    pauseRef.current = true;
+    setState(prev => ({ ...prev, isPaused: true }));
   }, []);
 
-  const pause = useCallback(() => { isPausedRef.current = true; setQueueState((p) => ({ ...p, isPaused: true })); }, []);
-  const resume = useCallback(() => { isPausedRef.current = false; setQueueState((p) => ({ ...p, isPaused: false })); }, []);
+  const resume = useCallback(() => {
+    pauseRef.current = false;
+    setState(prev => ({ ...prev, isPaused: false }));
+  }, []);
+
   const cancel = useCallback(() => {
-    isCancelledRef.current = true; isPausedRef.current = false;
-    setQueueState((p) => ({ ...p, isRunning: false, isPaused: false,
-      transactions: p.transactions.map((t) => (t.status === TransactionStatus.PENDING || t.status === TransactionStatus.PROCESSING) ? { ...t, status: TransactionStatus.CANCELLED } : t),
+    cancelRef.current = true;
+    pauseRef.current = false;
+    setState(prev => ({
+      ...prev,
+      isRunning: false,
+      isPaused: false,
+      transactions: prev.transactions.map(t =>
+        t.status === TxStatus.PENDING || t.status === TxStatus.PROCESSING
+          ? { ...t, status: TxStatus.CANCELLED }
+          : t
+      ),
     }));
   }, []);
-  const reset = useCallback(() => { isPausedRef.current = false; isCancelledRef.current = false; setQueueState(initialQueueState); }, []);
 
-  return { queueState, startProcessing, pause, resume, cancel, reset };
+  const reset = useCallback(() => {
+    pauseRef.current = false;
+    cancelRef.current = false;
+    setState(INITIAL_STATE);
+  }, []);
+
+  return { state, startProcessing, pause, resume, cancel, reset };
 }
